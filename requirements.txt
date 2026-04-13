@@ -8,3 +8,4 @@ pyrebase4
 requests
 beautifulsoup4
 fpdf
+openai
