@@ -1,7 +1,10 @@
 streamlit
-networkx
 pandas
 numpy
 scikit-fuzzy
 scipy
+networkx
 pyrebase4
+requests
+beautifulsoup4
+fpdf
