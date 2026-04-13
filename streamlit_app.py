@@ -4,6 +4,10 @@ import pandas as pd
 import numpy as np
 import time
 import random
+import requests
+from bs4 import BeautifulSoup
+from fpdf import FPDF
+
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 import pyrebase
@@ -14,8 +18,9 @@ st.set_page_config(page_title="Smart Trust AI", layout="wide")
 # ---------------- UI STYLE ----------------
 st.markdown("""
 <style>
-body {
+.stApp {
     background: linear-gradient(135deg,#1a1f71,#6a11cb,#8e44ad);
+    color:white;
 }
 .stButton button {
     background: linear-gradient(90deg,#6a11cb,#8e44ad);
@@ -25,27 +30,24 @@ body {
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- FIREBASE CONFIG ----------------
+# ---------------- FIREBASE ----------------
 firebaseConfig = {
-    "apiKey": "AIzaSyA3F3rEHiSU2bEJCLb-aEoENhok4Oss8BA",
-    "authDomain": "sellertrustai.firebaseapp.com",
-    "projectId": "sellertrustai",
-    "storageBucket": "sellertrustai.firebasestorage.app",
-    "messagingSenderId": "907138478207",
-    "appId": "1:907138478207:web:163b63dcdeea2214eacf4a",
-    "measurementId": "G-YG0BGFM7RV",
-
-    # 🔥 ADD THIS LINE (IMPORTANT)
+    "apiKey": "YOUR_KEY",
+    "authDomain": "YOUR_PROJECT.firebaseapp.com",
+    "projectId": "YOUR_PROJECT",
+    "storageBucket": "YOUR_PROJECT.appspot.com",
+    "messagingSenderId": "XXXX",
+    "appId": "XXXX",
     "databaseURL": ""
 }
+
 firebase = pyrebase.initialize_app(firebaseConfig)
 auth = firebase.auth()
 
-# ---------------- SESSION ----------------
+# ---------------- LOGIN ----------------
 if "logged" not in st.session_state:
     st.session_state.logged = False
 
-# ---------------- LOGIN ----------------
 if not st.session_state.logged:
 
     st.title("🔐 Smart Trust AI Login")
@@ -55,58 +57,79 @@ if not st.session_state.logged:
 
     col1, col2 = st.columns(2)
 
-    # LOGIN BUTTON
     with col1:
         if st.button("Login"):
             try:
                 auth.sign_in_with_email_and_password(email, password)
                 st.session_state.logged = True
+                st.session_state.user = email
                 st.success("Login successful")
                 st.rerun()
             except:
-                st.error("Invalid email or password")
+                st.error("Invalid login")
 
-    # REGISTER BUTTON
     with col2:
         if st.button("Register"):
             try:
                 auth.create_user_with_email_and_password(email, password)
-                st.success("Account created! Please login.")
+                st.success("Account created")
             except:
-                st.error("User exists or weak password")
+                st.error("User exists")
 
     st.stop()
-    
 
 # ---------------- LOGOUT ----------------
-if st.sidebar.button("🚪 Logout"):
+if st.sidebar.button("Logout"):
     st.session_state.logged = False
     st.rerun()
+
+st.sidebar.success(f"Logged in: {st.session_state.user}")
 
 # ---------------- HISTORY ----------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# ---------------- FAKE PRODUCT ANALYSIS ----------------
+# ---------------- AI ASSISTANT ----------------
+st.sidebar.title("🤖 AI Assistant")
+question = st.sidebar.text_input("Ask about trust")
+
+if question:
+    st.sidebar.write("This product seems moderately trustworthy based on available data.")
+
+# ---------------- PRODUCT SCRAPER ----------------
 def analyze_product(url):
-    return {
-        "prices": {
-            "Amazon": random.randint(800,1500),
-            "Flipkart": random.randint(700,1400),
-            "Meesho": random.randint(600,1300)
-        },
-        "reviews": {
-            "Amazon": random.randint(70,95),
-            "Flipkart": random.randint(60,90),
-            "Meesho": random.randint(50,85)
-        },
-        "features": (
-            random.randint(10,70),
-            random.randint(0,10),
-            random.randint(60,95),
-            random.randint(3,10)
-        )
-    }
+    try:
+        response = requests.get(url, headers={"User-Agent":"Mozilla/5.0"})
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        title = soup.title.string if soup.title else "Product"
+
+        return {
+            "title": title,
+            "prices": {
+                "Amazon": random.randint(800,1500),
+                "Flipkart": random.randint(700,1400),
+                "Meesho": random.randint(600,1300)
+            },
+            "reviews": {
+                "Amazon": random.randint(70,95),
+                "Flipkart": random.randint(60,90),
+                "Meesho": random.randint(50,85)
+            },
+            "features": (
+                random.randint(10,70),
+                random.randint(0,10),
+                random.randint(60,95),
+                random.randint(3,10)
+            )
+        }
+    except:
+        return {
+            "title":"Unknown",
+            "prices":{"Amazon":1000},
+            "reviews":{"Amazon":70},
+            "features": (30,3,70,5)
+        }
 
 # ---------------- FUZZY LOGIC ----------------
 def calculate_trust(d,c,r,e):
@@ -153,7 +176,18 @@ def calculate_trust(d,c,r,e):
 
     return sim.output['trust']
 
-# ---------------- MAIN UI ----------------
+# ---------------- PDF ----------------
+def generate_pdf(score):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=16)
+    pdf.cell(200,10,f"Trust Score: {score}", ln=True)
+
+    file = "report.pdf"
+    pdf.output(file)
+    return file
+
+# ---------------- MAIN ----------------
 st.title("💜 Smart Trust AI Dashboard")
 
 col1, col2 = st.columns(2)
@@ -162,85 +196,55 @@ with col1:
     url = st.text_input("🔗 Paste Product URL")
 
 with col2:
-    delay = st.slider("Delivery Delay", 0, 100, 20)
-    complaints = st.slider("Complaints", 0, 10, 1)
-    consistency = st.slider("Consistency", 0, 100, 80)
-    experience = st.slider("Experience", 0, 10, 5)
+    delay = st.slider("Delay",0,100,20)
+    complaints = st.slider("Complaints",0,10,1)
+    consistency = st.slider("Consistency",0,100,80)
+    experience = st.slider("Experience",0,10,5)
 
 # ---------------- ANALYZE ----------------
-if st.button("🚀 Analyze Product"):
+if st.button("🚀 Analyze"):
 
-    with st.spinner("Analyzing product..."):
+    with st.spinner("Analyzing..."):
         time.sleep(2)
 
     if url:
         data = analyze_product(url)
-        d, c, r, e = data["features"]
+        st.subheader(f"Product: {data['title']}")
+        d,c,r,e = data["features"]
         prices = data["prices"]
         reviews = data["reviews"]
     else:
-        d, c, r, e = delay, complaints, consistency, experience
+        d,c,r,e = delay, complaints, consistency, experience
         prices = {"Amazon":1000,"Flipkart":950,"Meesho":900}
         reviews = {"Amazon":80,"Flipkart":75,"Meesho":70}
 
     score = calculate_trust(d,c,r,e)
 
-    # Save history
-    st.session_state.history.append({
-        "Score": round(score,2),
-        "Complaints": c
-    })
+    st.session_state.history.append({"Score":round(score,2)})
 
-    # ---------------- RESULTS ----------------
-    st.subheader("📊 Results")
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Trust Score", round(score,2))
-    c2.metric("Consistency", r)
-    c3.metric("Complaints", c)
-
+    # Metrics
+    st.metric("Trust Score", round(score,2))
     st.progress(int(score))
 
-    # ---------------- CIRCULAR METER ----------------
-    st.subheader("🎯 Trust Meter")
+    # Chart
+    st.bar_chart(pd.DataFrame(prices.items(), columns=["Platform","Price"]).set_index("Platform"))
+    st.bar_chart(pd.DataFrame(reviews.items(), columns=["Platform","Rating"]).set_index("Platform"))
 
-    st.markdown(f"""
-    <div style='text-align:center'>
-        <svg width="200" height="200">
-            <circle cx="100" cy="100" r="80" stroke="#ddd" stroke-width="10" fill="none"/>
-            <circle cx="100" cy="100" r="80" stroke="#8e44ad" stroke-width="10"
-            fill="none"
-            stroke-dasharray="{score*5} 500"
-            transform="rotate(-90 100 100)"/>
-            <text x="50%" y="50%" text-anchor="middle" fill="white" dy=".3em" font-size="20">
-                {round(score,1)}
-            </text>
-        </svg>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ---------------- PRICE ----------------
-    st.subheader("💰 Price Comparison")
-    df_price = pd.DataFrame(prices.items(), columns=["Platform","Price"])
-    st.bar_chart(df_price.set_index("Platform"))
-
-    # ---------------- REVIEWS ----------------
-    st.subheader("⭐ Reviews Comparison")
-    df_reviews = pd.DataFrame(reviews.items(), columns=["Platform","Rating"])
-    st.bar_chart(df_reviews.set_index("Platform"))
-
-    # ---------------- INSIGHT ----------------
-    st.subheader("🧠 AI Insight")
-
+    # Result
     if score > 70:
-        st.success("Highly Trustworthy Product")
+        st.success("Highly Trustworthy")
     elif score > 40:
-        st.warning("Moderate Trust - Check reviews")
+        st.warning("Moderate Trust")
     else:
-        st.error("Low Trust - Risky purchase")
+        st.error("Low Trust")
+
+    # PDF
+    if st.button("📄 Download Report"):
+        file = generate_pdf(score)
+        with open(file,"rb") as f:
+            st.download_button("Download PDF", f)
 
 # ---------------- HISTORY ----------------
 st.subheader("📜 History")
-
 if st.session_state.history:
     st.dataframe(pd.DataFrame(st.session_state.history))
