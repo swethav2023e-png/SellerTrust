@@ -22,15 +22,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- FIREBASE ----------------
-firebaseConfig = {
-    "apiKey": "YOUR_API_KEY",
-    "authDomain": "YOUR_PROJECT.firebaseapp.com",
-    "projectId": "YOUR_PROJECT",
-    "storageBucket": "YOUR_PROJECT.appspot.com",
-    "messagingSenderId": "XXXX",
-    "appId": "XXXX",
-    "databaseURL": ""
-}
+const firebaseConfig = {
+  apiKey: "AIzaSyA3F3rEHiSU2bEJCLb-aEoENhok4Oss8BA",
+  authDomain: "sellertrustai.firebaseapp.com",
+  projectId: "sellertrustai",
+  storageBucket: "sellertrustai.firebasestorage.app",
+  messagingSenderId: "907138478207",
+  appId: "1:907138478207:web:163b63dcdeea2214eacf4a",
+  measurementId: "G-YG0BGFM7RV"
+};
 
 firebase = pyrebase.initialize_app(firebaseConfig)
 auth = firebase.auth()
