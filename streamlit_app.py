@@ -81,11 +81,26 @@ if st.sidebar.button("Logout"):
 
 # ---------------- AI ASSISTANT ----------------
 st.sidebar.title("🤖 AI Assistant")
-question = st.sidebar.text_input("Ask about product trust")
+
+question = st.sidebar.text_input("Ask about product")
 
 if question:
-    st.sidebar.write("This product seems moderately trustworthy based on analysis.")
+    if "trust" in question.lower():
+        if score > 70:
+            st.sidebar.write("This product is highly trustworthy with strong reviews and low complaints.")
+        elif score > 40:
+            st.sidebar.write("This product has moderate trust. You should check reviews carefully.")
+        else:
+            st.sidebar.write("This product has low trust. It may not be safe to buy.")
 
+    elif "price" in question.lower():
+        st.sidebar.write("Prices vary across platforms. Check price comparison chart above.")
+
+    elif "review" in question.lower():
+        st.sidebar.write("Review consistency is analyzed. Higher consistency means reliable ratings.")
+
+    else:
+        st.sidebar.write("Try asking about trust, price, or reviews.")
 # ---------------- TITLE ----------------
 st.title("💜 Smart Trust AI Dashboard")
 
