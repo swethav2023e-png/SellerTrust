@@ -84,7 +84,7 @@ st.sidebar.title("🤖 AI Assistant")
 question = st.sidebar.text_input("Ask about product trust")
 
 if question:
-    st.sidebar.write("This product looks moderately trustworthy based on available data.")
+    st.sidebar.write("This product seems moderately trustworthy based on analysis.")
 
 # ---------------- TITLE ----------------
 st.title("💜 Smart Trust AI Dashboard")
@@ -197,12 +197,42 @@ if st.button("🚀 Analyze"):
 
     score = calculate_trust(d,c,r,e)
 
+    # ---------------- TRUST METER ----------------
+    st.subheader("🎯 Trust Meter")
+
+    st.markdown(f"""
+    <div style='text-align:center'>
+        <svg width="220" height="220">
+            <circle cx="110" cy="110" r="90" stroke="#ddd" stroke-width="12" fill="none"/>
+            <circle cx="110" cy="110" r="90"
+                stroke="url(#grad)"
+                stroke-width="12"
+                fill="none"
+                stroke-dasharray="{score*5} 565"
+                transform="rotate(-90 110 110)"/>
+            <defs>
+                <linearGradient id="grad">
+                    <stop offset="0%" stop-color="#6a11cb"/>
+                    <stop offset="100%" stop-color="#8e44ad"/>
+                </linearGradient>
+            </defs>
+            <text x="50%" y="50%" text-anchor="middle"
+                fill="white" dy=".3em" font-size="22">
+                {round(score,1)}
+            </text>
+        </svg>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ---------------- METRICS ----------------
     st.metric("Trust Score", round(score,2))
     st.progress(int(score))
 
+    # ---------------- CHARTS ----------------
     st.bar_chart(pd.DataFrame(prices.items(), columns=["Platform","Price"]).set_index("Platform"))
     st.bar_chart(pd.DataFrame(reviews.items(), columns=["Platform","Rating"]).set_index("Platform"))
 
+    # ---------------- RESULT ----------------
     if score > 70:
         st.success("🟢 HIGH TRUST")
     elif score > 40:
