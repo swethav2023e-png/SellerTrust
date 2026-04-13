@@ -1,0 +1,6 @@
+streamlit
+pandas
+numpy
+scikit-fuzzy
+scipy
+pyrebase4
