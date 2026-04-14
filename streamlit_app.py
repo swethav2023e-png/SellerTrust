@@ -1,3 +1,85 @@
+# ---------------- IMPORTS ----------------
+import streamlit as st
+import pandas as pd
+import numpy as np
+import time
+import random
+import requests
+from bs4 import BeautifulSoup
+import pyrebase
+
+import skfuzzy as fuzz
+from skfuzzy import control as ctrl
+
+# ---------------- PAGE ----------------
+st.set_page_config(page_title="Smart Trust AI", layout="wide")
+
+# ---------------- UI ----------------
+st.markdown("""
+<style>
+.stApp {
+    background: linear-gradient(135deg,#1a1f71,#6a11cb,#8e44ad);
+    color:white;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- FIREBASE ----------------
+firebaseConfig = {
+    "apiKey": "AIzaSyA3F3rEHiSU2bEJCLb-aEoENhok4Oss8BA",
+    "authDomain": "sellertrustai.firebaseapp.com",
+    "projectId": "sellertrustai",
+    "storageBucket": "sellertrustai.appspot.com",
+    "messagingSenderId": "907138478207",
+    "appId": "1:907138478207:web:163b63dcdeea2214eacf4a",
+    "databaseURL": ""
+}
+
+firebase = pyrebase.initialize_app(firebaseConfig)
+auth = firebase.auth()
+
+# ---------------- SESSION ----------------
+if "logged" not in st.session_state:
+    st.session_state.logged = False
+
+# ---------------- LOGIN ----------------
+if not st.session_state.logged:
+
+    st.title("🔐 Smart Trust AI Login")
+
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("Login"):
+            try:
+                auth.sign_in_with_email_and_password(email, password)
+                st.session_state.logged = True
+                st.session_state.user = email
+                st.success("Login successful")
+                st.rerun()
+            except:
+                st.error("Invalid login")
+
+    with col2:
+        if st.button("Register"):
+            try:
+                auth.create_user_with_email_and_password(email, password)
+                st.success("Account created")
+            except:
+                st.warning("User exists. Login instead.")
+
+    st.stop()
+
+# ---------------- SIDEBAR ----------------
+st.sidebar.success(f"Logged in: {st.session_state.user}")
+
+if st.sidebar.button("Logout"):
+    st.session_state.logged = False
+    st.rerun()
+
 st.sidebar.title("📊 Dashboard Mode")
 
 mode = st.sidebar.radio(
@@ -5,7 +87,80 @@ mode = st.sidebar.radio(
     ["Manual Prediction", "URL Analysis"]
 )
 
-# ---------------- MANUAL ----------------
+# ---------------- PRODUCT SCRAPER ----------------
+def analyze_product(url):
+    try:
+        r = requests.get(url, headers={"User-Agent":"Mozilla/5.0"})
+        soup = BeautifulSoup(r.text, "html.parser")
+        title = soup.title.string if soup.title else "Product"
+
+        return {
+            "title": title,
+            "prices": {
+                "Amazon": random.randint(800,1500),
+                "Flipkart": random.randint(700,1400),
+                "Meesho": random.randint(600,1300)
+            },
+            "reviews": {
+                "Amazon": random.randint(70,95),
+                "Flipkart": random.randint(60,90),
+                "Meesho": random.randint(50,85)
+            },
+            "features": (
+                random.randint(10,70),
+                random.randint(0,10),
+                random.randint(60,95),
+                random.randint(3,10)
+            )
+        }
+    except:
+        return None
+
+# ---------------- FUZZY LOGIC ----------------
+def calculate_trust(d,c,r,e):
+
+    delay_var = ctrl.Antecedent(np.arange(0,101,1),'delay')
+    comp_var = ctrl.Antecedent(np.arange(0,11,1),'complaints')
+    cons_var = ctrl.Antecedent(np.arange(0,101,1),'consistency')
+    exp_var = ctrl.Antecedent(np.arange(0,11,1),'experience')
+
+    trust = ctrl.Consequent(np.arange(0,101,1),'trust')
+
+    delay_var['low'] = fuzz.trimf(delay_var.universe,[0,0,30])
+    delay_var['high'] = fuzz.trimf(delay_var.universe,[60,100,100])
+
+    comp_var['low'] = fuzz.trimf(comp_var.universe,[0,0,3])
+    comp_var['high'] = fuzz.trimf(comp_var.universe,[5,10,10])
+
+    cons_var['good'] = fuzz.trimf(cons_var.universe,[70,100,100])
+    cons_var['poor'] = fuzz.trimf(cons_var.universe,[0,0,50])
+
+    exp_var['high'] = fuzz.trimf(exp_var.universe,[5,10,10])
+
+    trust['low'] = fuzz.trimf(trust.universe,[0,0,40])
+    trust['medium'] = fuzz.trimf(trust.universe,[40,60,80])
+    trust['high'] = fuzz.trimf(trust.universe,[70,100,100])
+
+    rules = [
+        ctrl.Rule(delay_var['low'] & comp_var['low'], trust['high']),
+        ctrl.Rule(delay_var['high'] | comp_var['high'], trust['low']),
+        ctrl.Rule(cons_var['good'], trust['high']),
+        ctrl.Rule(cons_var['poor'], trust['low']),
+        ctrl.Rule(exp_var['high'], trust['high'])
+    ]
+
+    system = ctrl.ControlSystem(rules)
+    sim = ctrl.ControlSystemSimulation(system)
+
+    sim.input['delay'] = d
+    sim.input['complaints'] = c
+    sim.input['consistency'] = r
+    sim.input['experience'] = e
+
+    sim.compute()
+    return sim.output['trust']
+
+# ---------------- MANUAL DASHBOARD ----------------
 if mode == "Manual Prediction":
 
     st.title("🧠 Manual Trust Prediction")
@@ -21,19 +176,33 @@ if mode == "Manual Prediction":
         experience = st.slider("Seller Experience", 0, 10, 5)
 
     if st.button("🚀 Predict Trust"):
+
         score = calculate_trust(delay, complaints, consistency, experience)
 
         st.metric("Trust Score", round(score,2))
         st.progress(int(score))
 
-        if score > 70:
-            st.success("🟢 HIGH TRUST")
-        elif score > 40:
-            st.warning("🟡 MEDIUM TRUST")
-        else:
-            st.error("🔴 LOW TRUST")
+        # Trust Meter
+        st.subheader("🎯 Trust Meter")
+        st.markdown(f"""
+        <div style='text-align:center'>
+            <svg width="220" height="220">
+                <circle cx="110" cy="110" r="90" stroke="#ddd" stroke-width="12" fill="none"/>
+                <circle cx="110" cy="110" r="90"
+                    stroke="#8e44ad"
+                    stroke-width="12"
+                    fill="none"
+                    stroke-dasharray="{score*5} 565"
+                    transform="rotate(-90 110 110)"/>
+                <text x="50%" y="50%" text-anchor="middle"
+                    fill="white" dy=".3em" font-size="22">
+                    {round(score,1)}
+                </text>
+            </svg>
+        </div>
+        """, unsafe_allow_html=True)
 
-# ---------------- URL ----------------
+# ---------------- URL DASHBOARD ----------------
 elif mode == "URL Analysis":
 
     st.title("🔗 Product URL Analysis")
@@ -53,12 +222,28 @@ elif mode == "URL Analysis":
             st.metric("Trust Score", round(score,2))
             st.progress(int(score))
 
-            if score > 70:
-                st.success("🟢 HIGH TRUST")
-            elif score > 40:
-                st.warning("🟡 MEDIUM TRUST")
-            else:
-                st.error("🔴 LOW TRUST")
+            # Trust Meter
+            st.subheader("🎯 Trust Meter")
+            st.markdown(f"""
+            <div style='text-align:center'>
+                <svg width="220" height="220">
+                    <circle cx="110" cy="110" r="90" stroke="#ddd" stroke-width="12" fill="none"/>
+                    <circle cx="110" cy="110" r="90"
+                        stroke="#6a11cb"
+                        stroke-width="12"
+                        fill="none"
+                        stroke-dasharray="{score*5} 565"
+                        transform="rotate(-90 110 110)"/>
+                    <text x="50%" y="50%" text-anchor="middle"
+                        fill="white" dy=".3em" font-size="22">
+                        {round(score,1)}
+                    </text>
+                </svg>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.bar_chart(pd.DataFrame(data["prices"].items(), columns=["Platform","Price"]).set_index("Platform"))
+            st.bar_chart(pd.DataFrame(data["reviews"].items(), columns=["Platform","Rating"]).set_index("Platform"))
 
         else:
             st.error("Invalid URL")
