@@ -182,8 +182,8 @@ if mode == "Manual Prediction":
         st.metric("Trust Score", round(score,2))
         st.progress(int(score))
 
-        # Trust Meter
         st.subheader("🎯 Trust Meter")
+
         st.markdown(f"""
         <div style='text-align:center'>
             <svg width="220" height="220">
@@ -214,7 +214,7 @@ elif mode == "URL Analysis":
         data = analyze_product(url)
 
         if data:
-            st.subheader(f"Product: {data['title']}")
+            st.subheader(f"📦 Product: {data['title']}")
 
             d,c,r,e = data["features"]
             score = calculate_trust(d,c,r,e)
@@ -222,8 +222,8 @@ elif mode == "URL Analysis":
             st.metric("Trust Score", round(score,2))
             st.progress(int(score))
 
-            # Trust Meter
             st.subheader("🎯 Trust Meter")
+
             st.markdown(f"""
             <div style='text-align:center'>
                 <svg width="220" height="220">
@@ -242,8 +242,23 @@ elif mode == "URL Analysis":
             </div>
             """, unsafe_allow_html=True)
 
-            st.bar_chart(pd.DataFrame(data["prices"].items(), columns=["Platform","Price"]).set_index("Platform"))
-            st.bar_chart(pd.DataFrame(data["reviews"].items(), columns=["Platform","Rating"]).set_index("Platform"))
+            # -------- PRICE --------
+            st.markdown("---")
+            st.subheader("💰 Price Comparison")
+
+            st.bar_chart(
+                pd.DataFrame(data["prices"].items(), columns=["Platform","Price"])
+                .set_index("Platform")
+            )
+
+            # -------- REVIEW --------
+            st.markdown("---")
+            st.subheader("⭐ Review Comparison")
+
+            st.bar_chart(
+                pd.DataFrame(data["reviews"].items(), columns=["Platform","Rating"])
+                .set_index("Platform")
+            )
 
         else:
             st.error("Invalid URL")
