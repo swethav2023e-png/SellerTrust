@@ -52,24 +52,51 @@ if not st.session_state.logged:
 
     col1, col2 = st.columns(2)
 
+    # -------- LOGIN --------
     with col1:
         if st.button("Login"):
-            try:
-                auth.sign_in_with_email_and_password(email, password)
-                st.session_state.logged = True
-                st.session_state.user = email
-                st.success("Login successful")
-                st.rerun()
-            except:
-                st.error("Invalid login")
+            if email == "" or password == "":
+                st.warning("Please enter email and password")
+            else:
+                try:
+                    user = auth.sign_in_with_email_and_password(email, password)
 
+                    st.session_state.logged = True
+                    st.session_state.user = email
+
+                    st.success("Login successful 🎉")
+                    st.rerun()
+
+                except Exception as e:
+                    error = str(e)
+
+                    if "EMAIL_NOT_FOUND" in error:
+                        st.error("User not found. Please register first.")
+                    elif "INVALID_PASSWORD" in error:
+                        st.error("Wrong password.")
+                    elif "INVALID_EMAIL" in error:
+                        st.error("Invalid email format.")
+                    else:
+                        st.error("Login failed. Check credentials.")
+
+    # -------- REGISTER --------
     with col2:
         if st.button("Register"):
-            try:
-                auth.create_user_with_email_and_password(email, password)
-                st.success("Account created")
-            except:
-                st.warning("User exists. Login instead.")
+            if email == "" or password == "":
+                st.warning("Enter email and password")
+            elif len(password) < 6:
+                st.warning("Password must be at least 6 characters")
+            else:
+                try:
+                    auth.create_user_with_email_and_password(email, password)
+                    st.success("Account created! Now login.")
+                except Exception as e:
+                    error = str(e)
+
+                    if "EMAIL_EXISTS" in error:
+                        st.warning("User already exists. Try login.")
+                    else:
+                        st.error("Registration failed.")
 
     st.stop()
 
@@ -116,7 +143,7 @@ def analyze_product(url):
     except:
         return None
 
-# ---------------- FUZZY LOGIC ----------------
+# ---------------- FUZZY ----------------
 def calculate_trust(d,c,r,e):
 
     delay_var = ctrl.Antecedent(np.arange(0,101,1),'delay')
@@ -160,105 +187,45 @@ def calculate_trust(d,c,r,e):
     sim.compute()
     return sim.output['trust']
 
-# ---------------- MANUAL DASHBOARD ----------------
+# ---------------- MANUAL ----------------
 if mode == "Manual Prediction":
 
     st.title("🧠 Manual Trust Prediction")
 
-    col1, col2 = st.columns(2)
+    delay = st.slider("Delivery Delay", 0, 100, 20)
+    complaints = st.slider("Complaint Rate", 0, 10, 2)
+    consistency = st.slider("Review Consistency", 0, 100, 80)
+    experience = st.slider("Seller Experience", 0, 10, 5)
 
-    with col1:
-        delay = st.slider("Delivery Delay", 0, 100, 20)
-        complaints = st.slider("Complaint Rate", 0, 10, 2)
-
-    with col2:
-        consistency = st.slider("Review Consistency", 0, 100, 80)
-        experience = st.slider("Seller Experience", 0, 10, 5)
-
-    if st.button("🚀 Predict Trust"):
+    if st.button("Predict"):
 
         score = calculate_trust(delay, complaints, consistency, experience)
 
         st.metric("Trust Score", round(score,2))
         st.progress(int(score))
 
-        st.subheader("🎯 Trust Meter")
-
-        st.markdown(f"""
-        <div style='text-align:center'>
-            <svg width="220" height="220">
-                <circle cx="110" cy="110" r="90" stroke="#ddd" stroke-width="12" fill="none"/>
-                <circle cx="110" cy="110" r="90"
-                    stroke="#8e44ad"
-                    stroke-width="12"
-                    fill="none"
-                    stroke-dasharray="{score*5} 565"
-                    transform="rotate(-90 110 110)"/>
-                <text x="50%" y="50%" text-anchor="middle"
-                    fill="white" dy=".3em" font-size="22">
-                    {round(score,1)}
-                </text>
-            </svg>
-        </div>
-        """, unsafe_allow_html=True)
-
-# ---------------- URL DASHBOARD ----------------
+# ---------------- URL ----------------
 elif mode == "URL Analysis":
 
-    st.title("🔗 Product URL Analysis")
+    st.title("🔗 URL Analysis")
 
-    url = st.text_input("Paste Product URL")
+    url = st.text_input("Paste URL")
 
-    if st.button("🚀 Analyze Product"):
+    if st.button("Analyze"):
 
         data = analyze_product(url)
 
         if data:
-            st.subheader(f"📦 Product: {data['title']}")
-
-            d,c,r,e = data["features"]
-            score = calculate_trust(d,c,r,e)
+            score = calculate_trust(*data["features"])
 
             st.metric("Trust Score", round(score,2))
             st.progress(int(score))
 
-            st.subheader("🎯 Trust Meter")
-
-            st.markdown(f"""
-            <div style='text-align:center'>
-                <svg width="220" height="220">
-                    <circle cx="110" cy="110" r="90" stroke="#ddd" stroke-width="12" fill="none"/>
-                    <circle cx="110" cy="110" r="90"
-                        stroke="#6a11cb"
-                        stroke-width="12"
-                        fill="none"
-                        stroke-dasharray="{score*5} 565"
-                        transform="rotate(-90 110 110)"/>
-                    <text x="50%" y="50%" text-anchor="middle"
-                        fill="white" dy=".3em" font-size="22">
-                        {round(score,1)}
-                    </text>
-                </svg>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # -------- PRICE --------
-            st.markdown("---")
             st.subheader("💰 Price Comparison")
+            st.bar_chart(pd.DataFrame(data["prices"].items(), columns=["Platform","Price"]).set_index("Platform"))
 
-            st.bar_chart(
-                pd.DataFrame(data["prices"].items(), columns=["Platform","Price"])
-                .set_index("Platform")
-            )
-
-            # -------- REVIEW --------
-            st.markdown("---")
             st.subheader("⭐ Review Comparison")
-
-            st.bar_chart(
-                pd.DataFrame(data["reviews"].items(), columns=["Platform","Rating"])
-                .set_index("Platform")
-            )
+            st.bar_chart(pd.DataFrame(data["reviews"].items(), columns=["Platform","Rating"]).set_index("Platform"))
 
         else:
             st.error("Invalid URL")
